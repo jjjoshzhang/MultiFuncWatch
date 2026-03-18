@@ -55,9 +55,6 @@ void DS3231_Init()
     DS3231_RewriteOCF(I2C1);
 
 
-    DS3231_SetTime(I2C1,0xD0,0x00,0x00,0x00,0x12,0x01,0x01,0x26);
-
-
 }
 
 
@@ -80,7 +77,7 @@ void DS3231_RewriteOCF(I2C_TypeDef *I2Cx)
     // set time only at beginning
     if(status & 0x80)
     {
-        DS3231_SetTime(I2C1,0xD0,0x00,0x00,0x00,0x12,0x01,0x01,0x26);
+        DS3231_SetTime(I2C1,0xD0,0x00,0x00,0x00,0x04,0x12,0x01,0x01,0x26);
     }
     
     status &= 0x07; 
@@ -89,9 +86,8 @@ void DS3231_RewriteOCF(I2C_TypeDef *I2Cx)
 
 }
 
-uint8_t DS3231_RepStart(I2C_TypeDef *I2Cx, uint8_t Addr, uint8_t regAddr) {
+void DS3231_RepStart(I2C_TypeDef *I2Cx, uint8_t Addr, uint8_t regAddr, uint8_t* data,uint16_t size) {
 
-    uint8_t data = 0;
     
     // sending phase 
     while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_BUSY) == SET);
@@ -115,17 +111,23 @@ uint8_t DS3231_RepStart(I2C_TypeDef *I2Cx, uint8_t Addr, uint8_t regAddr) {
 	
 	while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_ADDR) == RESET);
 		
-	I2C_AcknowledgeConfig(I2Cx, DISABLE); // NACK
+	I2C_AcknowledgeConfig(I2Cx, ENABLE);
 		
 	I2C_ReadRegister(I2Cx, I2C_Register_SR1);
 	I2C_ReadRegister(I2Cx, I2C_Register_SR2);
 		
-	I2C_GenerateSTOP(I2Cx, ENABLE);
-
-	while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_RXNE) == RESET);
-	data = I2C_ReceiveData(I2Cx);
-    I2C_AcknowledgeConfig(I2Cx, ENABLE);
-    return data;
+	for(uint16_t i=0; i<Size-1; i++)
+	{
+		while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_RXNE) == RESET);
+		pBuffer[i] = I2C_ReceiveData(I2Cx);
+	}
+		I2C_AcknowledgeConfig(I2Cx, DISABLE);
+		I2C_GenerateSTOP(I2Cx, ENABLE);
+				
+		while(I2C_GetFlagStatus(I2Cx, I2C_FLAG_RXNE) == RESET);
+		pBuffer[Size-1] = I2C_ReceiveData(I2Cx);
+	
+	
 
 }
 
@@ -165,3 +167,16 @@ int DS3231_SetTime(I2C_TypeDef *I2Cx, uint8_t Addr, uint8_t commands,
 }
 
 
+void DS3231_ReadTime(I2C_TypeDef *I2Cx, uint8_t* dataT, uint16_t size)
+{
+    uint8_t dataRaw [7] = {0};
+    DS3231_RepStart(I2Cx,0xD0,0x00,dataRaw,7);
+    dataT[0] = BCD_to_Dec(dataRaw[0]);
+    dataT[1] = BCD_to_Dec(dataRaw[1]);
+    dataT[2] = BCD_to_Dec(dataRaw[2]);
+    dataT[3] = BCD_to_Dec(dataRaw[3]);
+    dataT[4] = BCD_to_Dec(dataRaw[4]);
+    dataT[5] = BCD_to_Dec(dataRaw[5]);
+    dataT[6] = BCD_to_Dec(dataRaw[6]);
+
+}
